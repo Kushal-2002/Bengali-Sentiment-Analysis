@@ -63,8 +63,9 @@ Monalisa Sarkar (2024801018) \\
 \maketitle
 \thispagestyle{fancy}
 
-\noindent Project repository: \url{https://github.com/Kushal-2002/smai_a3} \\
-Model on Hugging Face: \url{https://huggingface.co/k040902/bengali_book_review_sentiment}
+\noindent Project repository: \url{https://github.com/shadesin/smai-assignment-3} \\
+Model on Hugging Face: \url{https://huggingface.co/k040902/bengali_book_review_sentiment} \\
+Live app: \url{https://smai-assignment-3.streamlit.app/}
 
 %-----------------------------------------------------------
 \section{Introduction}
@@ -105,6 +106,8 @@ The assignment instructions specify a non-standard split convention:
 \end{center}
 
 This reversal is deliberate: the larger \texttt{test} split is used for training to maximise the data available for fine-tuning, while the \texttt{validation} split is kept untouched as the final evaluation set.
+
+From the 998-sample training pool we further carve a stratified \textbf{10\% validation split} (100 samples), leaving 898 samples for training. This inner split is what selects the best epoch; the 156-sample test set is touched exactly once, after training, to produce the numbers reported in Section~\ref{sec:results}. Keeping epoch selection off the test set is essential: an earlier version of this work selected the best checkpoint by scoring on the test set itself, which inflates the reported accuracy because the test set has then influenced model selection.
 
 \subsection{Label Distribution}
 
@@ -153,7 +156,7 @@ Batch size (train/eval) & 16 \\
 Epochs                  & 8 \\
 Random seed             & 42 \\
 Max sequence length     & 128 tokens \\
-Evaluation strategy     & Each epoch; best by accuracy \\
+Evaluation strategy     & Each epoch; best by macro F1 on validation \\
 Checkpoint saving       & Every epoch, keeping last 1 \\
 \bottomrule
 \end{tabular}
@@ -163,38 +166,58 @@ The learning rate of $2 \times 10^{-5}$ is the standard fine-tuning rate for BER
 
 \subsection{Evaluation Metric}
 
-We report \textbf{accuracy} (fraction of correctly classified samples) on the held-out test set. Accuracy is appropriate here as the binary label distribution is not severely skewed.
+We report \textbf{accuracy} (fraction of correctly classified samples) and \textbf{macro F1} (the unweighted mean of the per-class F1 scores) on the held-out test set. Accuracy is easy to interpret and appropriate here as the binary label distribution is not severely skewed; macro F1 is reported alongside it because it weights both classes equally and therefore exposes a model that does well on the majority class only. Macro F1 on the validation split is also the criterion used to select the best epoch during training.
 
 %-----------------------------------------------------------
 \section{Results}
+\label{sec:results}
 %-----------------------------------------------------------
 
 \subsection{Training Dynamics}
 
-The training loss decreased steadily over 8 epochs, converging to a final training loss of \textbf{0.3584}. A sample training log entry at the final step:
-\begin{lstlisting}
-{'loss': 0.3603, 'learning_rate': 1.59e-07, 'epoch': 7.94}
-{'train_loss': 0.3584, 'train_runtime': 511.9s, 'epoch': 8.0}
-\end{lstlisting}
+Training ran for 8 epochs (456 optimiser steps, 272.8 seconds). The training loss fell steadily from 0.68 to 0.15, while validation accuracy and macro F1 improved over the same period:
+
+\begin{center}
+\begin{tabular}{ccccc}
+\toprule
+\textbf{Epoch} & \textbf{Train loss} & \textbf{Val loss} & \textbf{Val accuracy} & \textbf{Val macro F1} \\
+\midrule
+1 & 0.6806 & 0.6462 & 0.61 & 0.5400 \\
+2 & 0.5769 & 0.6391 & 0.72 & 0.7029 \\
+3 & 0.4851 & 0.5709 & 0.79 & 0.7883 \\
+4 & 0.3910 & 0.7521 & 0.76 & 0.7520 \\
+5 & 0.2880 & 0.5778 & 0.80 & 0.7987 \\
+6 & 0.2206 & 0.6792 & 0.80 & 0.7987 \\
+7 & 0.1882 & 0.6094 & 0.81 & 0.8091 \\
+8 & 0.1462 & 0.6368 & \textbf{0.82} & \textbf{0.8188} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Two observations. First, the gap between training loss (0.15) and validation loss (0.64) at epoch 8 shows the model is fitting the small training set closely, yet validation accuracy is still improving rather than degrading, so the run was stopped before overfitting became harmful. Second, the best epoch is the last one, which suggests a longer schedule may still gain a little; we kept 8 epochs as declared in the configuration rather than extending the run after seeing the curve, since tuning the schedule on the basis of these numbers and then reporting them would reintroduce exactly the selection bias discussed below.
 
 \subsection{Test Set Performance}
 
-After fine-tuning, the model is evaluated on the 156-sample validation split (used as the test set):
+The selected checkpoint (epoch 8, chosen on the validation split) is evaluated once on the 156-sample held-out test set:
 
 \begin{center}
 \begin{tabular}{ll}
 \toprule
 \textbf{Metric} & \textbf{Value} \\
 \midrule
-Accuracy                       & \textbf{82.69\%} \\
-Evaluation loss (cross-entropy)& 0.6314 \\
-Evaluation runtime             & 3.62 seconds \\
-Samples per second             & 43.07 \\
+Accuracy                       & \textbf{78.85\%} \\
+Macro F1                       & \textbf{0.7880} \\
+Macro precision                & 0.7882 \\
+Macro recall                   & 0.7879 \\
+Evaluation loss (cross-entropy)& 0.7575 \\
+Test samples                   & 156 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-An accuracy of \textbf{82.69\%} on the Bengali test set is a strong result for a low-resource setting. This confirms that the IndicBERT representations, even without any domain-specific pretraining, transfer well to Bengali review sentiment.
+An accuracy of \textbf{78.85\%} with a macro F1 of \textbf{0.7880} on the Bengali test set is a solid result for a low-resource setting, and confirms that IndicBERT representations transfer to Bengali review sentiment without any domain-specific pretraining. Precision and recall are near-identical across the two classes, so the model is not trading one class off against the other.
+
+It is worth stating plainly why this number is lower than the 82.69\% reported in an earlier version of this work. That figure came from a run in which the best epoch was chosen by evaluating on the test set itself, so the test set had already influenced model selection and the resulting score was optimistic. The pipeline described here selects the epoch on a separate validation split and evaluates on the test set exactly once. The 78.85\% is therefore the honest estimate of generalisation, and is the number we stand behind.
 
 \subsection{Additional Metrics}
 
@@ -207,8 +230,8 @@ To provide a more complete evaluation, we report weighted precision, recall, and
 \toprule
 \textbf{True \textbackslash{} Pred} & \textbf{Negative} & \textbf{Positive} \\
 \midrule
-\textbf{Negative} & 68 & 13 \\
-\textbf{Positive} & 14 & 61 \\
+\textbf{Negative} & 65 & 16 \\
+\textbf{Positive} & 17 & 58 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -218,12 +241,12 @@ To provide a more complete evaluation, we report weighted precision, recall, and
 \begin{lstlisting}
                   precision    recall  f1-score   support
 
-     Negative       0.83      0.84      0.83        81
-     Positive       0.82      0.81      0.82        75
+     Negative       0.79      0.80      0.80        81
+     Positive       0.78      0.77      0.78        75
 
-     accuracy                           0.83       156
-    macro avg       0.83      0.83      0.83       156
-weighted avg       0.83      0.83      0.83       156
+     accuracy                           0.79       156
+    macro avg       0.79      0.79      0.79       156
+weighted avg       0.79      0.79      0.79       156
 \end{lstlisting}
 
 \begin{center}
@@ -231,9 +254,9 @@ weighted avg       0.83      0.83      0.83       156
 \toprule
 \textbf{Metric} & \textbf{Value} \\
 \midrule
-Precision (weighted) & \textbf{0.83} \\
-Recall (weighted)    & \textbf{0.83} \\
-F1 (weighted)        & \textbf{0.83} \\
+Precision (weighted) & \textbf{0.7884} \\
+Recall (weighted)    & \textbf{0.7885} \\
+F1 (weighted)        & \textbf{0.7884} \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -277,15 +300,26 @@ streamlit run app.py
 \end{figure}
 
 %-----------------------------------------------------------
-\section{Ablation Study (Planned)}
+\section{Ablation Study}
 %-----------------------------------------------------------
 
-The original ablation table contained projected numbers. To keep the report strictly empirical, the ablation is marked as planned. If time permits, the following comparisons should be run and reported:
+An ablation study was not feasible for this setup. We fine-tuned a single IndicBERT model with the available training configuration, and did not maintain multiple model variants or ablation-friendly checkpoints (e.g., alternative architectures or controlled hyperparameter sweeps). Given the time and resource constraints, we focused on a stable end-to-end pipeline and reporting the primary results.
+
+%-----------------------------------------------------------
+\section{Reproducibility and Model Promotion}
+%-----------------------------------------------------------
+
+The experiments in this report are produced by a configuration-driven pipeline rather than by an ad-hoc notebook, so that any reported number can be traced back to the exact code, data and hyperparameters that produced it.
+
 \begin{itemize}[noitemsep]
-    \item \textbf{Max length 64 vs 128:} Shorter sequences are faster but may truncate informative content in longer reviews.
-    \item \textbf{Class-weighted loss:} Not required here since the class imbalance is mild.
-    \item \textbf{Larger batch size:} Limited by available GPU/MPS memory; batch size 16 is a good balance.
+    \item \textbf{Pinned inputs.} The dataset and the base model are both fetched at a fixed Hub commit, so a rerun months later sees the same 998 reviews and the same pre-trained weights.
+    \item \textbf{Declared configuration.} All hyperparameters live in \texttt{configs/train.yaml} and any value can be overridden from the command line (\texttt{-o training.epochs=4}). Each run records a hash of its resolved configuration.
+    \item \textbf{Tracked runs.} Every run logs its parameters, per-epoch training and validation curves, the git commit, whether the working tree was dirty, and a content fingerprint of each data split to MLflow. The run reported here is \texttt{b85e3fce}, at commit \texttt{3a99a19}.
+    \item \textbf{Honest evaluation.} Epoch selection uses the validation split only; the test set is evaluated once, at the end, producing a \texttt{metrics.json} with the metrics, confusion matrix and classification report.
+    \item \textbf{Quality gate.} A candidate model is promoted only if it clears absolute floors (accuracy and macro F1 $\geq 0.75$) and does not regress by more than 0.01 macro F1 against the current champion on the same test set. Passing runs are registered and aliased \texttt{@champion}; failing runs exit non-zero and are not published. The gate is what stands between a training run and the model served by the application.
 \end{itemize}
+
+This structure is what allowed us to catch the evaluation flaw discussed in Section~\ref{sec:results}: once epoch selection was moved off the test set, the reported accuracy dropped from 82.69\% to 78.85\%, which is the figure that actually reflects unseen data.
 
 %-----------------------------------------------------------
 \section{Limitations}
@@ -309,7 +343,7 @@ The original ablation table contained projected numbers. To keep the report stri
 \section{Conclusion}
 %-----------------------------------------------------------
 
-We successfully fine-tuned IndicBERT for Bengali book review sentiment classification, achieving 82.69\% accuracy on the held-out test set. The approach — leveraging a multilingual, Indic-script-aware pre-trained model and fine-tuning it on task-specific labelled data — is a principled and effective strategy for low-resource NLP. The accompanying Streamlit application makes the model accessible to non-technical users without any coding knowledge. Future work could explore data augmentation, multi-class sentiment (adding a neutral category), and deployment via a REST API for wider integration.
+We successfully fine-tuned IndicBERT for Bengali book review sentiment classification, achieving 78.85\% accuracy and 0.788 macro F1 on a held-out test set that was used exactly once, for final evaluation. The approach — leveraging a multilingual, Indic-script-aware pre-trained model and fine-tuning it on task-specific labelled data — is a principled and effective strategy for low-resource NLP. The accompanying Streamlit application makes the model accessible to non-technical users without any coding knowledge. Future work could explore data augmentation, multi-class sentiment (adding a neutral category), and deployment via a REST API for wider integration.
 
 %-----------------------------------------------------------
 \begin{thebibliography}{9}

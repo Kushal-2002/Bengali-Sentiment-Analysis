@@ -1,7 +1,15 @@
 # Model weights — hosted on HuggingFace Hub instead
 indic_bert_bengali_sentiment/
 
+# Pipeline outputs (tracked in MLflow / Hugging Face Hub instead)
+outputs/
+mlruns/
+mlartifacts/
+mlflow.db
+
 # Python
+.venv/
+.pytest_cache/
 __pycache__/
 *.py[cod]
 *.egg-info/

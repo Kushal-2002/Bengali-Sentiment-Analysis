@@ -1,0 +1,41 @@
+# Training pipeline config. Override any value from the CLI:
+#   python -m bsa.train -o training.epochs=4 -o data.subsample=48
+experiment_name: bengali-sentiment
+tracking_uri: sqlite:///mlflow.db
+output_dir: outputs
+seed: 42
+log_model_artifact: true
+
+data:
+  hf_repo: ai4bharat/IndicSentiment
+  revision: dc8f3f66886531c6897fedffca1e938a68fc5013   # pinned dataset commit
+  language: bn
+  text_col: INDIC REVIEW
+  label_col: LABEL
+  train_source_split: test        # assignment convention: train on the Hub "test" split...
+  test_source_split: validation   # ...and hold out the Hub "validation" split as the test set
+  val_fraction: 0.1               # carved from the training pool for epoch selection
+  subsample: null                 # cap rows per split (smoke runs only)
+
+model:
+  base: ai4bharat/indic-bert
+  revision: 4842dd258ecc0546f0d660b76a3b22a9c632f401   # pinned base-model commit
+  max_length: 128
+
+training:
+  learning_rate: 2.0e-5
+  batch_size: 16
+  eval_batch_size: 32
+  epochs: 8
+  weight_decay: 0.0
+  warmup_ratio: 0.0
+  metric_for_best_model: f1_macro
+
+gate:
+  min_test:                       # absolute floors on the held-out test set
+    accuracy: 0.75
+    f1_macro: 0.75
+  compare_metric: f1_macro        # champion comparison metric
+  max_regression: 0.01            # allowed drop vs. the current champion
+  registered_model: bengali-sentiment
+  hf_repo: k040902/bengali_book_review_sentiment
