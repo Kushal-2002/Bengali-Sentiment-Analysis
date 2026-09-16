@@ -1,5 +1,7 @@
 # Bengali Book Review Sentiment
 
+[![CI](https://github.com/Kushal-2002/Bengali-Sentiment-Analysis/actions/workflows/ci.yml/badge.svg)](https://github.com/Kushal-2002/Bengali-Sentiment-Analysis/actions/workflows/ci.yml)
+
 IndicBERT fine-tuned for Bengali review sentiment, with a reproducible training
 pipeline, experiment tracking and a quality-gated model registry.
 
