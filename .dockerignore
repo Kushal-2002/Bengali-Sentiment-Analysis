@@ -1,0 +1,15 @@
+.git
+.github
+.venv
+.pytest_cache
+__pycache__
+*.egg-info
+outputs
+mlruns
+mlartifacts
+mlflow.db
+indic_bert_bengali_sentiment
+*.ipynb
+*.png
+*.tex
+*.pdf

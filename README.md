@@ -46,6 +46,32 @@ Override any config value without editing the file:
 
 Write floats with a decimal point (`3.0e-5`); YAML reads `3e-5` as a string.
 
+## Inference API
+
+A FastAPI service wraps the published model. The container installs the CPU-only
+torch build and runs as a non-root user.
+
+```bash
+make serve                      # http://localhost:8080/docs  (PORT=9000 to change)
+make docker-build && make docker-run
+```
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /health` | Liveness plus the model id and pinned revision actually loaded |
+| `POST /predict` | One review → label, confidence, per-class scores |
+| `POST /predict/batch` | Up to `MAX_BATCH` (256) reviews in one call |
+
+```bash
+curl -X POST http://localhost:8080/predict \
+  -H 'content-type: application/json' \
+  -d '{"text": "বইটি অসাধারণ ছিল"}'
+```
+
+`MODEL_ID` and `MODEL_REVISION` select and pin the weights, so a deployed container
+serves a known commit rather than whatever the Hub repo points at today. Each request
+logs its batch size, latency and predicted labels — never the review text.
+
 ## Streamlit app
 
 ```bash
